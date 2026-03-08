@@ -1,28 +1,36 @@
 # guncelle.ps1
 $ErrorActionPreference = "Stop"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
 try {
-    Write-Host "[*] Yerel veri tabani hazirlaniyor..."
+    Write-Host "[*] TITCK Duyurularindan guncel Excel linki avlaniyor..."
+    $baseUrl = "https://www.titck.gov.tr/dinamiksayfa/28"
+    $web = Invoke-WebRequest -Uri $baseUrl -UseBasicParsing
     
-    # Herhangi bir linke bagimli kalmadan, Swift uygulaman icin 
-    # test verilerini dogrudan burada olusturuyoruz.
-    $ilaclar = @(
-        @{ Barkod = "8699514010110"; IlacAdi = "PAROL 500 MG 20 TABLET"; Fiyat = "85.50" },
-        @{ Barkod = "8699525010017"; IlacAdi = "MAJEZIK 100 MG 15 FILM TABLET"; Fiyat = "112.25" },
-        @{ Barkod = "8699540010016"; IlacAdi = "ARVELLES 25 MG 20 FILM TABLET"; Fiyat = "94.75" },
-        @{ Barkod = "8699508010447"; IlacAdi = "APRANAX FORTE 550 MG 20 TABLET"; Fiyat = "105.00" },
-        @{ Barkod = "8699514120017"; IlacAdi = "VERIDON 500 MG 60 TABLET"; Fiyat = "210.30" }
-    )
-
-    Write-Host "[*] JSON donusumu yapiliyor..."
-    # Swift modeline tam uyumlu JSON uretiyoruz
-    $jsonOut = $ilaclar | ConvertTo-Json -Compress
-
-    Write-Host "[*] Dosya sisteme yaziliyor..."
-    # UTF8 encoding Turkce karakterler (İ, ş, ğ) icin kritik
-    $jsonOut | Out-File -FilePath "ilaclar.json" -Encoding utf8
+    # Sayfa icindeki ilk .xlsx uzantili linki yakala
+    $relLink = $web.Links | Where-Object { $_.href -like "*.xlsx*" } | Select-Object -First 1 -ExpandProperty href
+    $excelUrl = "https://www.titck.gov.tr" + $relLink
     
-    Write-Host "[+] Basarili! ilaclar.json icinde $($ilaclar.Count) adet ilac var."
+    Write-Host "[+] Bulunan Link: $excelUrl"
+    $tempExcel = "tum_ilaclar.xlsx"
+    
+    $client = New-Object System.Net.WebClient
+    $client.Headers.Add("User-Agent", "Mozilla/5.0")
+    $client.DownloadFile($excelUrl, $tempExcel)
+
+    Write-Host "[*] ImportExcel modulu kuruluyor..."
+    Install-Module ImportExcel -Scope CurrentUser -Force -AllowClobber
+
+    Write-Host "[*] 15.000+ satir okunuyor (Bu biraz surebilir)..."
+    $veriler = Import-Excel -Path $tempExcel -StartRow 3
+
+    $temizVeri = $veriler | Where-Object { $_.'Barkod' -ne $null } | Select-Object `
+        @{Name='Barkod'; Expression={ [string]$_.'Barkod' }},
+        @{Name='IlacAdi'; Expression={ [string]$_.'İlaç Adı' }},
+        @{Name='Fiyat'; Expression={ [string]$_.'Fiyat' }}
+
+    $temizVeri | ConvertTo-Json -Compress | Out-File -FilePath "ilaclar.json" -Encoding utf8
+    Write-Host "[+] Basarili! $($temizVeri.Count) adet ilac sisteme yuklendi."
 
 } catch {
     Write-Error "Hata: $_"
