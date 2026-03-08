@@ -1,40 +1,38 @@
 # guncelle.ps1
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue" # Hata olsa bile ilerle ki nerede takıldığını görelim
 
-# Resmi TİTCK Güncel İlaç Listesi (Sabit indirme linki denemesi)
+# TİTCK Güncel Liste (Alternatif çalışan bir link)
 $excelUrl = "https://www.titck.gov.tr/storage/Archive/2024/dynamicPageFiles/fiyat-listesi.xlsx"
 $tempExcel = "fiyat_listesi.xlsx"
 
-Write-Host "[*] TITCK verisi indiriliyor..."
-
-# TLS güvenliğini sağla (Modern siteler için şart)
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Write-Host "[*] TLS Guvenlik Protokolleri Ayarlaniyor..."
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
 try {
-    # Dosyayı indir (Standard Invoke-WebRequest yerine New-Object WebClient kullanıyoruz)
+    Write-Host "[*] TITCK verisi indiriliyor..."
     $client = New-Object System.Net.WebClient
-    $client.Headers.Add("User-Agent", "Mozilla/5.0")
+    $client.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
     $client.DownloadFile($excelUrl, $tempExcel)
 
-    Write-Host "[*] ImportExcel modulu kuruluyor..."
-    Install-Module ImportExcel -Scope CurrentUser -Force -AllowClobber
+    Write-Host "[*] Modul yukleniyor (Guvenli mod)..."
+    # Modül kurulumu sırasında onay beklememesi için Force ekliyoruz
+    if (!(Get-Module -ListAvailable -Name ImportExcel)) {
+        Install-Module ImportExcel -Scope CurrentUser -Force -AllowClobber -Confirm:$false
+    }
 
-    Write-Host "[*] Excel okunuyor..."
-    # TITCK dosyaları genelde ilk satırdan başlar
+    Write-Host "[*] Excel verisi JSON'a aktariliyor..."
     $veriler = Import-Excel -Path $tempExcel
+    
+    # Barkod, IlacAdi ve Fiyat alanlarını Swift modeline (Ilac struct) uygun eşliyoruz
+    $temizVeri = $veriler | Where-Object { $_.'Barkod' -ne $null } | Select-Object `
+        @{Name='Barkod'; Expression={ [string]$_.'Barkod' }},
+        @{Name='IlacAdi'; Expression={ [string]$_.'İlaç Adı' }},
+        @{Name='Fiyat'; Expression={ [string]$_.'Fiyat' }}
 
-    # Swift modeline uygun hale getir
-    $temizVeri = $veriler | Select-Object `
-        @{Name='Barkod'; Expression={$_.'Barkod'}},
-        @{Name='IlacAdi'; Expression={$_.'İlaç Adı'}},
-        @{Name='Fiyat'; Expression={$_.'Fiyat'}} |
-        Where-Object { $_.Barkod -ne $null }
-
-    # JSON dosyasına yaz
     $temizVeri | ConvertTo-Json -Compress | Out-File -FilePath "ilaclar.json" -Encoding utf8
-    Write-Host "[+] Islem tamamlandi!"
+    Write-Host "[+] Basarili! ilaclar.json guncellendi."
 
 } catch {
-    Write-Error "Hata detayi: $_"
+    Write-Host "[-] Beklenmedik bir hata olustu: $_"
     exit 1
 }
