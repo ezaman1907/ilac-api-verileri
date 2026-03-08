@@ -1,0 +1,27 @@
+name: Haftalik Ilac Verisi Guncelleme
+
+on:
+  schedule:
+    # Her Cuma gece saat 03:00'te çalıştır (Sunucu saati UTC'dir)
+    - cron: '0 3 * * 5'
+  workflow_dispatch: # Manuel çalıştırma butonu ekler
+
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repoyu Klonla
+        uses: actions/checkout@v3
+
+      - name: PowerShell Betigini Calistir
+        shell: pwsh
+        run: ./guncelle.ps1
+
+      - name: Yeni Veriyi GitHub'a Push Et
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+          git add ilaclar.json
+          git commit -m "İlaç verileri otomatik güncellendi" || exit 0
+          git push
