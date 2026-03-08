@@ -1,35 +1,40 @@
 # guncelle.ps1
 $ErrorActionPreference = "Stop"
 
-# Hedef: İlaç listesi sunan güvenilir bir sayfa
-$targetUrl = "https://www.ilacabak.com/yeni-eklenen-ilaclar"
-$headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+# Resmi TİTCK Güncel İlaç Listesi (Sabit indirme linki denemesi)
+$excelUrl = "https://www.titck.gov.tr/storage/Archive/2024/dynamicPageFiles/fiyat-listesi.xlsx"
+$tempExcel = "fiyat_listesi.xlsx"
+
+Write-Host "[*] TITCK verisi indiriliyor..."
+
+# TLS güvenliğini sağla (Modern siteler için şart)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 try {
-    Write-Host "[*] Veri kazima basladi..."
-    $response = Invoke-WebRequest -Uri $targetUrl -Headers $headers -UseBasicParsing
-    $html = $response.Content
+    # Dosyayı indir (Standard Invoke-WebRequest yerine New-Object WebClient kullanıyoruz)
+    $client = New-Object System.Net.WebClient
+    $client.Headers.Add("User-Agent", "Mozilla/5.0")
+    $client.DownloadFile($excelUrl, $tempExcel)
 
-    # Regex ile İlaç Adı ve Fiyat eşleşmelerini yakalıyoruz
-    # Bu desen, site yapısındaki ilaç ismi ve yanındaki fiyatı cımbızlar
-    $pattern = '(?s)<div class="ilac-adi">.*?<a.*?>(.*?)</a>.*?<div class="fiyat">(.*?) ₺</div>'
-    $matches = [regex]::Matches($html, $pattern)
+    Write-Host "[*] ImportExcel modulu kuruluyor..."
+    Install-Module ImportExcel -Scope CurrentUser -Force -AllowClobber
 
-    $ilacListesi = foreach ($match in $matches) {
-        [PSCustomObject]@{
-            Barkod   = "B-" + (Get-Random -Minimum 100000 -Maximum 999999) # Örnek Barkod
-            IlacAdi  = $match.Groups[1].Value.Trim()
-            Fiyat    = $match.Groups[2].Value.Trim()
-        }
-    }
+    Write-Host "[*] Excel okunuyor..."
+    # TITCK dosyaları genelde ilk satırdan başlar
+    $veriler = Import-Excel -Path $tempExcel
 
-    if ($ilacListesi.Count -eq 0) { throw "Veri bulunamadi!" }
+    # Swift modeline uygun hale getir
+    $temizVeri = $veriler | Select-Object `
+        @{Name='Barkod'; Expression={$_.'Barkod'}},
+        @{Name='IlacAdi'; Expression={$_.'İlaç Adı'}},
+        @{Name='Fiyat'; Expression={$_.'Fiyat'}} |
+        Where-Object { $_.Barkod -ne $null }
 
-    # JSON'a çevir ve dosyayı mühürle
-    $ilacListesi | ConvertTo-Json -Compress | Out-File -FilePath "ilaclar.json" -Encoding utf8
-    Write-Host "[+] $($ilacListesi.Count) adet ilac basariyla JSON yapildi."
+    # JSON dosyasına yaz
+    $temizVeri | ConvertTo-Json -Compress | Out-File -FilePath "ilaclar.json" -Encoding utf8
+    Write-Host "[+] Islem tamamlandi!"
 
 } catch {
-    Write-Error "Hata: $_"
+    Write-Error "Hata detayi: $_"
     exit 1
 }
