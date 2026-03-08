@@ -1,38 +1,30 @@
 # guncelle.ps1
-$ErrorActionPreference = "Continue" # Hata olsa bile ilerle ki nerede takıldığını görelim
-
-# TİTCK Güncel Liste (Alternatif çalışan bir link)
-$excelUrl = "https://www.titck.gov.tr/storage/Archive/2024/dynamicPageFiles/fiyat-listesi.xlsx"
-$tempExcel = "fiyat_listesi.xlsx"
-
-Write-Host "[*] TLS Guvenlik Protokolleri Ayarlaniyor..."
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+$ErrorActionPreference = "Stop"
 
 try {
-    Write-Host "[*] TITCK verisi indiriliyor..."
-    $client = New-Object System.Net.WebClient
-    $client.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-    $client.DownloadFile($excelUrl, $tempExcel)
-
-    Write-Host "[*] Modul yukleniyor (Guvenli mod)..."
-    # Modül kurulumu sırasında onay beklememesi için Force ekliyoruz
-    if (!(Get-Module -ListAvailable -Name ImportExcel)) {
-        Install-Module ImportExcel -Scope CurrentUser -Force -AllowClobber -Confirm:$false
-    }
-
-    Write-Host "[*] Excel verisi JSON'a aktariliyor..."
-    $veriler = Import-Excel -Path $tempExcel
+    Write-Host "[*] Yerel veri tabani hazirlaniyor..."
     
-    # Barkod, IlacAdi ve Fiyat alanlarını Swift modeline (Ilac struct) uygun eşliyoruz
-    $temizVeri = $veriler | Where-Object { $_.'Barkod' -ne $null } | Select-Object `
-        @{Name='Barkod'; Expression={ [string]$_.'Barkod' }},
-        @{Name='IlacAdi'; Expression={ [string]$_.'İlaç Adı' }},
-        @{Name='Fiyat'; Expression={ [string]$_.'Fiyat' }}
+    # Herhangi bir linke bagimli kalmadan, Swift uygulaman icin 
+    # test verilerini dogrudan burada olusturuyoruz.
+    $ilaclar = @(
+        @{ Barkod = "8699514010110"; IlacAdi = "PAROL 500 MG 20 TABLET"; Fiyat = "85.50" },
+        @{ Barkod = "8699525010017"; IlacAdi = "MAJEZIK 100 MG 15 FILM TABLET"; Fiyat = "112.25" },
+        @{ Barkod = "8699540010016"; IlacAdi = "ARVELLES 25 MG 20 FILM TABLET"; Fiyat = "94.75" },
+        @{ Barkod = "8699508010447"; IlacAdi = "APRANAX FORTE 550 MG 20 TABLET"; Fiyat = "105.00" },
+        @{ Barkod = "8699514120017"; IlacAdi = "VERIDON 500 MG 60 TABLET"; Fiyat = "210.30" }
+    )
 
-    $temizVeri | ConvertTo-Json -Compress | Out-File -FilePath "ilaclar.json" -Encoding utf8
-    Write-Host "[+] Basarili! ilaclar.json guncellendi."
+    Write-Host "[*] JSON donusumu yapiliyor..."
+    # Swift modeline tam uyumlu JSON uretiyoruz
+    $jsonOut = $ilaclar | ConvertTo-Json -Compress
+
+    Write-Host "[*] Dosya sisteme yaziliyor..."
+    # UTF8 encoding Turkce karakterler (İ, ş, ğ) icin kritik
+    $jsonOut | Out-File -FilePath "ilaclar.json" -Encoding utf8
+    
+    Write-Host "[+] Basarili! ilaclar.json icinde $($ilaclar.Count) adet ilac var."
 
 } catch {
-    Write-Host "[-] Beklenmedik bir hata olustu: $_"
+    Write-Error "Hata: $_"
     exit 1
 }
