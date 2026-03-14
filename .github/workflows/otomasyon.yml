@@ -25,3 +25,19 @@ jobs:
           git add ilaclar.json
           git commit -m "İlaç verileri otomatik güncellendi" || exit 0
           git push
+name: Haftalik Ilac Verisi Guncelleme
+on:
+  workflow_dispatch:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Gelecekteki Node24 zorunluluguna hazırlık
+
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repoyu Klonla
+        uses: actions/checkout@v4 # v3'ü v4 yaparak uyarıyı sileriz
+
+      - name: PowerShell Betigini Calistir
+        shell: pwsh
+        run: ./guncelle.ps1
