@@ -2,14 +2,15 @@ name: Haftalik Ilac Verisi Guncelleme
 on:
   workflow_dispatch:
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Gelecekteki Node24 zorunluluguna hazırlık
+  # Bu satırı ekleyerek GitHub'a "ben hazırım, Node 24 kullan" diyoruz
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
 
 jobs:
   guncelle:
     runs-on: ubuntu-latest
     steps:
       - name: Repoyu Klonla
-        uses: actions/checkout@v4 # v3'ü v4 yaparak uyarıyı sileriz
+        uses: actions/checkout@v4 # En güncel sürüm
 
       - name: PowerShell Betigini Calistir
         shell: pwsh
