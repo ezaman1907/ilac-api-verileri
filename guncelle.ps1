@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 try {
     Write-Host "[*] TITCK Duyurularindan guncel Excel linki avlaniyor..."
-    $baseUrl = "https://www.titck.gov.tr/dinamiksayfa/28"
+    $baseUrl = "https://www.titck.gov.tr/dinamikmodul/85"
     $web = Invoke-WebRequest -Uri $baseUrl -UseBasicParsing
     
     # Sayfa icindeki ilk .xlsx uzantili linki yakala
